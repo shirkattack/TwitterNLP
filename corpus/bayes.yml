@@ -1,0 +1,14 @@
+method: bayes
+metric:
+  goal: maximize
+  name: test/accuracy
+parameters:
+  dataset:
+    values: [mnist, cifar10]
+
+command:
+  - ${env}
+  - ${interpreter}
+  - scripts/sweep_from_config.py
+  - ./corpus/gpu_config.cfg
+  - ./training

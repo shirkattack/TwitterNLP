@@ -52,7 +52,7 @@ def main(
     #output_dev = "./dev_docs.spacy"
     #output_train = "./train_docs.spacy"
     
-    train_docs = preprocess(str("merged_twitter2"))
+    train_docs = preprocess(str("merged_twitter4"))
     random.shuffle(train_docs)
     split_idx = int(len(train_docs) * SPLIT_EVAL)
     train_docs, dev_docs = train_docs[:split_idx], train_docs[split_idx:]

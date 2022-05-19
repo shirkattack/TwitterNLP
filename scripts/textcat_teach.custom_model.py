@@ -37,11 +37,14 @@ def textcat_custom_model(dataset: str, source: str, label: List[str], patterns: 
     
 
     #nlp = spacy.load("/home/esteban/Patterns_Factory/ANNOTATIONS/TEXTCAT/dmp_textcat_model")
-    nlp = spacy.load("/home/esteban/Patterns_Factory/ANNOTATIONS/TEXTCAT/dmp_textcat_model")
+    #nlp = spacy.load("/home/esteban/Patterns_Factory/ANNOTATIONS/TEXTCAT/dmp_textcat_model")
+    
+    nlp = spacy.load("/home/esteban/twitter_nlp/training/model-best")
     
     stream = JSONL(source)
     
-    stream = split_sentences(nlp, stream)
+    # stream = split_sentences(nlp, stream) # Use this for the REDDIT data
+
     stream = filter_duplicates(stream, by_input=True, by_task=False)
     
     model = TextClassifier(nlp, label)
@@ -90,12 +93,3 @@ def textcat_custom_model(dataset: str, source: str, label: List[str], patterns: 
         "config": {
             "labels": ["RELEVANT"]}
     }
-
-
-
-
-
-
-
-
-

@@ -4,6 +4,8 @@
 
 This project uses [spaCy](https://spacy.io) with annotated data from [Prodigy](https://prodi.gy) to train a **binary text classifier with exclusive classes** to predict Tweets focused on scams and fraud in cryptocurrency.
 
+The model classifies negative tweets about scams relating to cryptocurrency into categories based on what the scam is about. Designed to strengthen risk assesment for investment in cryptocurrency.
+
 ## 📋 project.yml
 
 The [`project.yml`](project.yml) defines the data assets required by the
@@ -76,11 +78,26 @@ apply). Here are two simplified example entries:
 }
 ```
 
+### List of labels and corresponding titles
+
+|               **Models**               |  **Labels**  |
+| :-----------------------------------: | :---------------------: |
+|       🚀 Multiclassification        |       `Fraud Event`, `Fraud Description`       |
+| 🔧 Named Entity Recognition | `Person`, `Cryptotoken`, `Contract`, `Value`, `Buyer and Seller`  |
+|       📦 Threat-Level Score        | `scores range from 0-99` |
+|              💥 Credibility Score               |   💥 `scores range from 0-99`   |
+
 ### Data creation workflow
 
 ```bash
 prodigy mark docs_issues_data ./raw_text.jsonl --label DOCUMENTATION --view-id classification
 ```
+
+### Annotation Policy for Text Classification
+1. Something that describes a specific behavior or pattern of a scam with regards to cryptocurrency
+2. Something that describes a specific EVENT detailing the crypto currency coin or value
+multiclassification (fraud event, fraud description)
+3. Something that is instructive to identify a scam (e.g. Tutorials on how to identify a scam)
 
 <img width="250" src="https://user-images.githubusercontent.com/13643239/69798875-7d3a5280-11d2-11ea-94d2-e04f9e18b69e.png" alt="" align="right">
 
@@ -98,3 +115,45 @@ package or just `pip install` it with one command to try it locally.
 To use the JSONL data in Autocat, we added `"labels": ["DOCUMENTATION"]` to all
 examples with `"answer": "accept"` and `"labels": ["N/A"]` to all examples with
 `"answer": "reject"`.
+
+False positve Examples:
+
+"@NFTONETHWeb3 @ShibNFTMeta @MetaMartianss Sick of getting rugged and scammed in Crypto? 
+Wanna change it?
+While most just complain, this team is working hard to change things!
+Check them out https://t.co/n0yrTpQPmu https://t.co/3IcQdiL89E"
+
+@newbornseal @LofiGuyNFT Come join us as we go on the adventure of giving
+visibility into scammers and how they operate. We
+help recover lost crypto &amp; Nft to those who got
+scammed!
+
+# False positive
+below is considered a 'promotion' and therefore a false positive
+
+RT @Hunter_samurai1: ♦️Honeypot/scam checker, buy/sell tax, audits, whitepapers, all token data all in one place with auto-refresh
+#CoinSca
+
+# false positive promotion below
+WARNING! KOXX-PAYING - OUTSIDE PROJECT - 99.9% FAST SCAM SIGNALS! BEWARE..
+
+https://t.co/McixwLYCy6
+
+#EmilyNews #invest #HYIPs #bitcoin #crypto #btc
+
+
+# Edge case (ambivalkence)
+not sure about the below:
+many a scam coin in crypto #apecoin looks like one
+
+# not sure about this one
+Beware of people trying to scam on emblems. No bungie email proof, want money sent via cashapp/crypto, random profile. Btw guys here’s a code for Darkest Day Emblem stv-fy4-32j, you all owe me $500 🤣🤣🤣🤣🤣🤣 https://t.co/IFcLTJ9lJa
+
+# Scam ADVICE
+NFT Tip of the day:
+Be cautious of profiles where they use BAYC and Crypto Punks PFPs. Since these are the most reputable projects out, people will sometimes make accounts with them as the PFP to gain followers or scam people.
+
+# Scam NEWS
+Supreme Court asks crypto currency scam accused to disclose username, password of Bitcoin wallet to ED
+#cryptocurrency 
+https://t.co/83XSkWThdR
