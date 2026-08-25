@@ -1,31 +1,28 @@
-title: "Predicting whether a GitHub issue is about docs (Text Classification)"
-description: "This project uses [spaCy](https://spacy.io) with annotated data from [Prodigy](https://prodi.gy) to train a **binary text classifier with exclusive classes** to predict whether a GitHub issue title is about documentation."
+title: "Detecting cryptocurrency scams on Twitter (Text Classification)"
+description: "This project uses [spaCy](https://spacy.io) with tweets annotated in [Prodigy](https://prodi.gy) to train a **binary text classifier** that flags tweets discussing scams and fraud in cryptocurrency (`RELEVANT` vs `IRRELEVANT`)."
+
 # Variables can be referenced across the project.yml using ${vars.var_name}
 vars:
-  config: "bert.cfg" #change to config,cfg or cnn.cfg
-  name: "textcat_docs"
-  version: "0.0.0"
+  config: "config.cfg"   # one of: config.cfg (CPU, bag-of-words), cnn.cfg, bert.cfg (GPU)
+  name: "twitter_scam_textcat"
+  version: "0.1.0"
   train: "train"
   dev: "dev"
-  gpu_id: 0
+  gpu_id: -1             # set to a GPU device id to train on GPU
 
 # These are the directories that the project needs. The project CLI will make
 # sure that they always exist.
-directories: ["assets", "training", "configs", "scripts", "corpus"]
+directories: ["assets", "training", "configs", "scripts", "corpus", "patterns"]
 
-# Assets that should be downloaded or available in the directory. We're shipping
-# them with the project, so they won't have to be downloaded. But the
-# 'project assets' command still lets you verify that the checksums match.
+# Assets that should be downloaded or available in the directory.
 assets:
   - dest: "assets/${vars.train}.jsonl"
-    #checksum: "ebd254a77132b9018fdd581e95aef549"
-    description: "JSONL-formatted training data exported from Prodigy, annotated with `DOCUMENTATION` (4629 examples)"
+    description: "JSONL-formatted training data exported from Prodigy (binary accept/reject annotations)"
   - dest: "assets/${vars.dev}.jsonl"
-    #checksum: "ab56fc1828403bffaf163f3c540e473f"
-    description: "JSONL-formatted development data exported from Prodigy, annotated with `DOCUMENTATION` (1158 examples)"
-
-  - dest: 'assets/vectors.zip'
-    url: 'https://dl.fbaipublicfiles.com/fasttext/vectors-english/crawl-300d-2M.vec.zip'
+    description: "JSONL-formatted development data exported from Prodigy (binary accept/reject annotations)"
+  - dest: "assets/vectors.zip"
+    url: "https://dl.fbaipublicfiles.com/fasttext/vectors-english/crawl-300d-2M.vec.zip"
+    description: "fastText English vectors, only needed by the init-vectors command"
 
 # Workflows are sequences of commands (see below) executed in order. You can
 # run them via "spacy project run [workflow]". If a commands's inputs/outputs
@@ -41,18 +38,17 @@ workflows:
 # via "spacy project run [command] [path]". The help message is optional and
 # shown when executing "spacy project run [optional command] [path] --help".
 commands:
-
-  - name: init-vectors
-    help: Download vectors and convert to model
+  - name: "init-vectors"
+    help: "Convert the downloaded fastText vectors into a spaCy vectors model"
     script:
       - "python -m spacy init vectors en assets/vectors.zip assets/en_fasttext_vectors"
     deps:
       - "assets/vectors.zip"
     outputs_no_cache:
-      - "assets/en_vectors_web_lg"
+      - "assets/en_fasttext_vectors"
 
   - name: "preprocess"
-    help: "Convert the data to spaCy's binary format"
+    help: "Convert the JSONL annotations to spaCy's binary format"
     script:
       - "python scripts/preprocess.py assets/${vars.train}.jsonl corpus/${vars.train}.spacy"
       - "python scripts/preprocess.py assets/${vars.dev}.jsonl corpus/${vars.dev}.spacy"
@@ -63,18 +59,24 @@ commands:
     outputs:
       - "corpus/${vars.train}.spacy"
       - "corpus/${vars.dev}.spacy"
-  - name: init-labels
-    help: Create a file with labels
+
+  - name: "init-labels"
+    help: "Generate the label files for the training config"
     script:
-      - "python -m spacy init labels ./configs/config.cfg ./corpus --gpu-id ${vars.gpu_id}"
+      - "python -m spacy init labels configs/${vars.config} corpus/labels --gpu-id ${vars.gpu_id}"
+    deps:
+      - "corpus/${vars.train}.spacy"
+    outputs:
+      - "corpus/labels/textcat_multilabel.json"
 
   - name: "train"
-    help: "Train a text classification model"
+    help: "Train the text classification model"
     script:
       - "python -m spacy train configs/${vars.config} --output training/ --paths.train corpus/${vars.train}.spacy --paths.dev corpus/${vars.dev}.spacy --gpu-id ${vars.gpu_id}"
     deps:
       - "corpus/${vars.train}.spacy"
       - "corpus/${vars.dev}.spacy"
+      - "configs/${vars.config}"
     outputs:
       - "training/model-best"
 
@@ -88,31 +90,28 @@ commands:
     outputs:
       - "training/metrics.json"
 
+  - name: "sweep"
+    help: "Run a Bayesian W&B hyperparameter sweep (requires `wandb login`)"
+    script:
+      - "python scripts/spacy_sweeps.py corpus/gpu_config.cfg training --gpu-id ${vars.gpu_id}"
+    deps:
+      - "corpus/${vars.train}.spacy"
+      - "corpus/${vars.dev}.spacy"
+      - "corpus/gpu_config.cfg"
 
+  - name: "visualize"
+    help: "Launch the Streamlit demo for the trained model"
+    script:
+      - "streamlit run scripts/visualize.py"
+    deps:
+      - "scripts/visualize.py"
+      - "training/model-best"
 
-
-#==========================================================================
-#============================= List of Commands: ==========================
-# python -m spacy project run preprocess
-# python -m spacy init fill-config ./base_config.cfg ./config.cfg 
-# python -m spacy project run project assets
-# python -m spacy project run train
-# python -m spacy project run evaluate
-
-
-# python -m spacy debug config /home/esteban/textcat_docs_issues/configs/config.cfg
-
-
-#Below generates labels for the training data
-# python -m spacy init labels ./configs/config.cfg corpus/labels/textcat.json
-
-# python -m spacy debug data ./configs/config.cfg   <- use trhe direct path to the file here
-
-# Text Classification: 0 new label(s), 1 existing label(s)
-# ℹ The train data contains instances without mutually-exclusive classes.
-# Use '--textcat-multilabel' when training.
-
-
-# Spacy Convert Binary JSON into spacy train
-# python -m spacy convert assets/train-data.json ./corpus --lang en
-# python -m spacy convert assets/eval-data.json ./corpus --lang en
+  - name: "package"
+    help: "Package the trained model as a pip package"
+    script:
+      - "python -m spacy package training/model-best packages --name ${vars.name} --version ${vars.version} --force"
+    deps:
+      - "training/model-best"
+    outputs_no_cache:
+      - "packages/en_${vars.name}-${vars.version}/dist/en_${vars.name}-${vars.version}.tar.gz"

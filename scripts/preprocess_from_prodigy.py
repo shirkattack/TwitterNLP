@@ -1,68 +1,70 @@
-import typer
+"""Export a Prodigy dataset straight from the Prodigy DB into train/dev DocBins.
+
+Binary accept/reject annotations are mapped to RELEVANT/IRRELEVANT and split
+into a training and a development set.
+
+Usage:
+    python scripts/preprocess_from_prodigy.py <prodigy_dataset> corpus/train.spacy corpus/dev.spacy
+"""
 import random
-from prodigy.components.db import connect
-#import srsly
 from pathlib import Path
-from spacy.util import get_words_and_spaces
-from spacy.tokens import Doc, DocBin
+from typing import Iterable, List
+
 import spacy
+import typer
+from prodigy.components.db import connect
+from spacy.language import Language
+from spacy.tokens import DocBin
+
+POSITIVE = "RELEVANT"
+NEGATIVE = "IRRELEVANT"
+CATEGORIES = (POSITIVE, NEGATIVE)
 
 
-def preprocess(annotated):
-    """use this to get a binanry classification dataset
-    Args:
-        annotated (_str_): _description_
-        dataset (_list_): imported list of annotated data from prodigy
-    Returns:
-        _type_: list of dictionary
-    """
+def load_annotations(dataset_name: str) -> List[dict]:
+    """Read a Prodigy dataset and keep only accepted/rejected examples."""
     db = connect()
-    dataset = db.get_dataset(annotated) # name of the prodigy labeled data
-    processed = []
-    for data in dataset:
-        if data['answer'] != 'ignore':
-            processed.append({
-                'text': data['text'],
-                'labels': 'RELEVANT' if 'accept' in data['answer'] else 'IRRELEVANT'
-            })
-    return processed
+    if dataset_name not in db:
+        raise typer.BadParameter(f"Prodigy dataset {dataset_name!r} does not exist")
+    records = []
+    for eg in db.get_dataset(dataset_name):
+        answer = eg.get("answer")
+        if answer not in ("accept", "reject"):
+            continue
+        records.append(
+            {"text": eg["text"], "label": POSITIVE if answer == "accept" else NEGATIVE}
+        )
+    return records
 
 
-def make_spacy(nlp, output, records, categories):
-    #nlp = spacy.blank("en")
+def make_docbin(nlp: Language, records: Iterable[dict], output: Path) -> int:
     doc_bin = DocBin()
     data_tuples = ((eg["text"], eg) for eg in records)
     for doc, eg in nlp.pipe(data_tuples, as_tuples=True):
-        doc.cats = {category:0 for category in categories}
-        doc.cats[eg["labels"]] = 1
+        doc.cats = {category: float(category == eg["label"]) for category in CATEGORIES}
         doc_bin.add(doc)
-    return doc_bin.to_disk(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    doc_bin.to_disk(output)
+    return len(doc_bin)
 
 
 def main(
-    #input_path: Path = typer.Argument(..., exists=True, dir_okay=False),
-    output_train: Path = typer.Argument(..., dir_okay=False), # output training
-    output_dev: Path = typer.Argument(..., dir_okay=False), # output dev
-):
-    
-    CATEGORIES = ['RELEVANT', 'IRRELEVANT']
-    SPLIT_EVAL = 0.8
+    dataset: str = typer.Argument(..., help="Name of the annotated Prodigy dataset"),
+    output_train: Path = typer.Argument(..., dir_okay=False),
+    output_dev: Path = typer.Argument(..., dir_okay=False),
+    train_fraction: float = typer.Option(0.8, min=0.0, max=1.0, help="Share of examples used for training"),
+    seed: int = typer.Option(0, help="Shuffle seed for a reproducible split"),
+) -> None:
     nlp = spacy.blank("en")
+    records = load_annotations(dataset)
+    random.Random(seed).shuffle(records)
+    split_idx = int(len(records) * train_fraction)
+    train_docs, dev_docs = records[:split_idx], records[split_idx:]
 
-    #output_dev = "./dev_docs.spacy"
-    #output_train = "./train_docs.spacy"
-    
-    train_docs = preprocess(str("merged_twitter4"))
-    random.shuffle(train_docs)
-    split_idx = int(len(train_docs) * SPLIT_EVAL)
-    train_docs, dev_docs = train_docs[:split_idx], train_docs[split_idx:]
-
-    # output for the training data
-    make_spacy(nlp, output_train, train_docs, CATEGORIES)
-    # output for the eval data
-    make_spacy(nlp, output_dev, dev_docs, CATEGORIES)
-    print(f"Processed {len(train_docs)} documents: {output_train}")
-    print(f"Processed {len(dev_docs)} documents: {output_dev}")
+    n_train = make_docbin(nlp, train_docs, output_train)
+    n_dev = make_docbin(nlp, dev_docs, output_dev)
+    print(f"Processed {n_train} training documents: {output_train}")
+    print(f"Processed {n_dev} development documents: {output_dev}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,13 @@
-training
-packages
-notebooks
-model
+# Training outputs and packaged models
+training/
+packages/
+model/
+*.zip
+
+# Experiment tracking and local secrets
+wandb/
+.env
+prodigy.json
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -50,5 +56,5 @@ healthchecksdb
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
 
-# Hide user API keys
+# Local credentials
 config.py
